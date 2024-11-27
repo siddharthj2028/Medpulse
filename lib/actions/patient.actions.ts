@@ -1,6 +1,8 @@
 "use server";
 
 import { ID, Query } from "node-appwrite";
+import { ReadStream } from 'fs';
+import { FormData } from 'formdata-node';
 import {
   BUCKET_ID,
   DATABASE_ID,
@@ -12,7 +14,6 @@ import {
   users,
 } from "../appwrite.config";
 import { parseStringify } from "../utils";
-import { redirect } from "next/navigation";
 
 // CREATE APPWRITE USER
 export const createUser = async (user: CreateUserParams) => {
@@ -54,11 +55,15 @@ export const getUser = async (userId: string) => {
   }
 };
 
-class InputFile {
-  static fromBlob(blob: Blob, fileName: string) {
-    return { blob, fileName };
+const uploadFile = async (file: File) => {
+  if (!BUCKET_ID) {
+    throw new Error('BUCKET_ID is not defined');
   }
-}
+  const response = await storage.createFile(BUCKET_ID, ID.unique(), file);
+  return response;
+};
+
+
 export const registerPatient = async ({
   identificationDocument,
   ...patient
@@ -67,14 +72,10 @@ export const registerPatient = async ({
     // Upload file ->  // https://appwrite.io/docs/references/cloud/client-web/storage#createFile
     let file;
     if (identificationDocument) {
-      const inputFile: any  =
-        identificationDocument &&
-        InputFile.fromBlob(
-          identificationDocument?.get("blobFile") as Blob,
-          identificationDocument?.get("fileName") as string
-        );
-
-      file = await storage.createFile(BUCKET_ID!, ID.unique(), inputFile);
+      const blobFile = identificationDocument?.get("blobFile") as Blob;
+      const fileName = identificationDocument?.get("fileName") as string;
+      const fileObject = new File([blobFile], fileName);
+      file = await uploadFile(fileObject);
     }
 
     // Create new patient document -> https://appwrite.io/docs/references/cloud/server-nodejs/databases#createDocument
